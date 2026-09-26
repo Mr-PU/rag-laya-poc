@@ -1,0 +1,38 @@
+services:
+  laya:
+    build: ./laya-service
+    container_name: rag-poc-laya
+    ports:
+      - "8091:8000"
+    volumes:
+      - laya-model-cache:/root/.cache/huggingface
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: rag-poc-backend
+    ports:
+      - "8090:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+      LAYA_URL: http://laya:8000
+      TOP_K_RETRIEVE: ${TOP_K_RETRIEVE:-6}
+      TOP_N_CONTEXT: ${TOP_N_CONTEXT:-3}
+      LAYA_RELEVANCE_THRESHOLD: ${LAYA_RELEVANCE_THRESHOLD:-0.35}
+    depends_on:
+      - laya
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: rag-poc-frontend
+    ports:
+      - "8092:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  laya-model-cache:

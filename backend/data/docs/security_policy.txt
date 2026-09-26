@@ -1,0 +1,13 @@
+Acme Robotics — Information Security Policy
+
+All employees must enable multi-factor authentication (MFA) on their corporate accounts within 7 days of their start date. Accounts without MFA enabled after this period will be automatically suspended.
+
+Passwords must be at least 14 characters long and must not be reused across the last 10 passwords. Passwords should be rotated every 180 days for accounts with access to production systems.
+
+Laptops must have full-disk encryption enabled and must be enrolled in the company's mobile device management (MDM) system before connecting to internal systems. Lost or stolen devices must be reported to IT Security within 1 hour of discovery.
+
+Access to production databases requires a signed access request approved by a team lead, and is automatically revoked after 90 days unless renewed. All production access is logged and reviewed quarterly.
+
+Phishing simulation tests are run monthly. Employees who fail three simulations within a 12-month period are required to complete additional security awareness training.
+
+Any suspected security incident, including phishing emails, suspicious logins, or data exposure, must be reported immediately to security@acmerobotics.example and must not be discussed publicly until cleared by the security team.

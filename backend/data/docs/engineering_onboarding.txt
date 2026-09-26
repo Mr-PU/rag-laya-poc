@@ -1,0 +1,13 @@
+Acme Robotics — Engineering Onboarding Guide
+
+New engineers are assigned a buddy for their first 30 days who helps with environment setup, codebase orientation, and answering day-to-day questions. Buddies are chosen from the same team where possible.
+
+Local development requires Docker Desktop, Python 3.11+, and Node.js 20+. Setup instructions live in the internal `dev-environment` repository, and the setup script `./scripts/bootstrap.sh` installs all required tooling automatically.
+
+All new engineers must complete the "Production Access & On-Call Basics" training module before being granted staging environment access, and must shadow at least one on-call rotation before joining the on-call schedule themselves.
+
+Code review requires at least one approval from a senior engineer before merging to the main branch. Pull requests should be kept under 400 lines where possible; larger changes should be split or accompanied by a design doc.
+
+New engineers get a $500 home office equipment stipend, usable within the first 90 days of employment, covering monitors, keyboards, chairs, and similar equipment.
+
+The first two weeks follow a structured ramp-up plan: week one covers architecture overviews and local environment setup, week two covers a guided first pull request with a mentor.

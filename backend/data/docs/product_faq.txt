@@ -1,0 +1,13 @@
+Acme Robotics — RoboArm X1 Product FAQ
+
+The RoboArm X1 has a maximum payload capacity of 5 kilograms and a reach of 850 millimeters. It operates on a standard 220V power supply and draws approximately 400 watts under typical load.
+
+The unit ships with a 2-year manufacturer warranty covering parts and labor for manufacturing defects. Damage from misuse, unauthorized modification, or operation outside the rated payload is not covered.
+
+Firmware updates are released quarterly and can be applied via the RoboArm Companion app over USB-C or Wi-Fi. Acme recommends updating firmware before any new deployment.
+
+The RoboArm X1 supports ROS2 (Robot Operating System 2) out of the box, along with a Python SDK for custom automation scripts. Sample scripts are available in the `roboarm-examples` public repository.
+
+Recommended operating temperature range is 5°C to 40°C, with humidity below 80% non-condensing. Operating outside this range may trigger the built-in thermal safety cutoff.
+
+Customer support for the RoboArm X1 is available via the support portal, with a guaranteed first response time of 4 business hours for Priority customers and 1 business day for Standard customers.

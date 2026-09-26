@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RAG Showdown — OpenAI-only vs Laya-reranked</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --panel-2: #171f2b;
+    --border: #232d3b;
+    --text: #e7edf5;
+    --muted: #8a97a8;
+    --accent-a: #4f9dff;   /* naive path */
+    --accent-b: #37d399;   /* laya path */
+    --warn: #ffb454;
+    --bad: #ff6b6b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+  }
+  header {
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 640px; }
+  .status-row { display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.ok { background: var(--accent-b); }
+  .dot.bad { background: var(--bad); }
+  .config { display: flex; gap: 8px; align-items: center; }
+  .config input {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 6px 10px; font-size: 12.5px; width: 220px;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 22px 28px 60px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab-btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+    padding: 9px 16px; border-radius: 999px; font-size: 13.5px; cursor: pointer;
+  }
+  .tab-btn.active { color: var(--text); border-color: var(--accent-a); background: #16233a; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .query-bar { display: flex; gap: 10px; margin-bottom: 18px; }
+  .query-bar input {
+    flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 13px 16px; border-radius: var(--radius); font-size: 14.5px;
+  }
+  .query-bar input:focus { outline: none; border-color: var(--accent-a); }
+  button.primary {
+    background: linear-gradient(135deg, var(--accent-a), #3b7fd6);
+    border: none; color: white; padding: 0 22px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.secondary {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 18px; border-radius: var(--radius); font-size: 13.5px; cursor: pointer;
+  }
+  .sample-qs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .sample-qs button {
+    background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+    padding: 6px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+  }
+  .sample-qs button:hover { color: var(--text); border-color: var(--accent-a); }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card.naive { border-top: 3px solid var(--accent-a); }
+  .card.laya { border-top: 3px solid var(--accent-b); }
+  .card h3 { margin: 0; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+  .answer-box { background: var(--panel-2); border-radius: 8px; padding: 12px 14px; font-size: 13.5px; white-space: pre-wrap; min-height: 60px; }
+  .timing-strip { display: flex; gap: 6px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--panel-2); }
+  .timing-seg { height: 100%; }
+  .timing-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
+  .timing-legend span.sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .total-ms { font-size: 12.5px; color: var(--muted); }
+  .total-ms b { color: var(--text); font-size: 14px; }
+
+  details.chunks { font-size: 12.5px; }
+  details.chunks summary { cursor: pointer; color: var(--muted); }
+  .chunk-item { border-top: 1px solid var(--border); padding: 8px 0; }
+  .chunk-item .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .chunk-item .score { color: var(--text); font-weight: 600; }
+  .chunk-item .kept-no { opacity: .45; }
+  .loading-note { color: var(--muted); font-size: 13px; }
+
+  /* Eval tab */
+  .eval-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  @media (max-width: 860px) { .eval-summary { grid-template-columns: 1fr; } }
+  .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .metric-row:last-child { border-bottom: none; }
+  .bar-track { flex: 1; height: 8px; background: var(--panel-2); border-radius: 999px; margin: 0 12px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; }
+  .metric-val { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  table.per-q { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.per-q th, table.per-q td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.per-q th { color: var(--muted); font-weight: 500; }
+  .hit { color: var(--accent-b); font-weight: 700; }
+  .miss { color: var(--bad); font-weight: 700; }
+
+  .corpus-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; }
+  .corpus-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .corpus-card h4 { margin: 0 0 4px; font-size: 13.5px; }
+  .corpus-card span { font-size: 11.5px; color: var(--muted); }
+
+  footer { text-align: center; color: var(--muted); font-size: 11.5px; padding: 20px; }
+  a { color: var(--accent-a); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>RAG Showdown</h1>
+    <p>Same retrieval, same OpenAI generation — compared with and without a local Laya reranking pass. Laya runs fully offline in its own Docker container.</p>
+    <div class="status-row" style="margin-top:8px;">
+      <span><span id="statusDot" class="dot"></span> <span id="statusText">checking backend…</span></span>
+      <span id="chunkCount"></span>
+    </div>
+  </div>
+  <div class="config">
+    <label style="font-size:12px;color:var(--muted);">Backend URL</label>
+    <input id="backendUrl" type="text" />
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="compare">Compare</button>
+    <button class="tab-btn" data-tab="eval">Batch Eval</button>
+    <button class="tab-btn" data-tab="corpus">Corpus</button>
+  </div>
+
+  <!-- COMPARE TAB -->
+  <section id="tab-compare" class="tab-panel active">
+    <div class="query-bar">
+      <input id="queryInput" type="text" placeholder="Ask a question about the sample company docs…" />
+      <button class="primary" id="runBtn">Run comparison</button>
+    </div>
+    <div class="sample-qs" id="sampleQs"></div>
+
+    <div id="compareLoading" class="loading-note" style="display:none;">Running both pipelines…</div>
+
+    <div class="compare-grid" id="compareGrid" style="display:none;">
+      <div class="card naive">
+        <h3>🅰 Naive RAG <span class="badge">vector similarity only</span></h3>
+        <div class="answer-box" id="naiveAnswer"></div>
+        <div>
+          <div class="timing-strip" id="naiveStrip"></div>
+          <div class="timing-legend" id="naiveLegend"></div>
+        </div>
+        <div class="total-ms">Total: <b id="naiveTotal">–</b> ms</div>
+        <details class="chunks">
+          <summary>Context chunks sent to the model</summary>
+          <div id="naiveChunks"></div>
+        </details>
+      </div>
+
+      <div class="card laya">
+        <h3>🅱 Laya-reranked RAG <span class="badge">local · dockerized</span></h3>
+        <div class="answer-box" id="layaAnswer"></div>
+        <div>
+          <div class="timing-strip" id="layaStrip"></div>
+          <div class="timing-legend" id="layaLegend"></div>
+        </div>
+        <div class="total-ms">Total: <b id="layaTotal">–</b> ms</div>
+        <details class="chunks">
+          <summary>Context chunks sent to the model</summary>
+          <div id="layaChunks"></div>
+        </details>
+        <details class="chunks">
+          <summary>All candidates Laya scored (relevance, concurrent calls)</summary>
+          <div id="layaAllScored"></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVAL TAB -->
+  <section id="tab-eval" class="tab-panel">
+    <button class="secondary" id="runEvalBtn">▶ Run full eval set (10 questions)</button>
+    <p style="color:var(--muted); font-size:12.5px; margin-top:10px;">
+      Runs both pipelines on a fixed set of questions with known source documents and expected keywords,
+      then compares retrieval accuracy, answer keyword accuracy, and average latency.
+    </p>
+    <div id="evalLoading" class="loading-note" style="display:none; margin-top:10px;">Evaluating 10 questions on both pipelines — this can take a little while…</div>
+
+    <div id="evalResults" style="display:none; margin-top:20px;">
+      <div class="eval-summary">
+        <div class="card">
+          <h3>Retrieval accuracy <span class="badge">right doc in context</span></h3>
+          <div class="metric-row">
+            <span style="color:var(--accent-a)">Naive</span>
+            <div class="bar-track"><div class="bar-fill" id="barRetNaive" style="background:var(--accent-a)"></div></div>
+            <span class="metric-val" id="valRetNaive">–</span>
+          </div>
+          <div class="metric-row">
+            <span style="color:var(--accent-b)">Laya-reranked</span>
+            <div class="bar-track"><div class="bar-fill" id="barRetLaya" style="background:var(--accent-b)"></div></div>
+            <span class="metric-val" id="valRetLaya">–</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Answer keyword accuracy <span class="badge">expected fact present</span></h3>
+          <div class="metric-row">
+            <span style="color:var(--accent-a)">Naive</span>
+            <div class="bar-track"><div class="bar-fill" id="barKwNaive" style="background:var(--accent-a)"></div></div>
+            <span class="metric-val" id="valKwNaive">–</span>
+          </div>
+          <div class="metric-row">
+            <span style="color:var(--accent-b)">Laya-reranked</span>
+            <div class="bar-track"><div class="bar-fill" id="barKwLaya" style="background:var(--accent-b)"></div></div>
+            <span class="metric-val" id="valKwLaya">–</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Average latency <span class="badge">ms per question, lower is better</span></h3>
+          <div class="metric-row">
+            <span style="color:var(--accent-a)">Naive</span>
+            <div class="bar-track"><div class="bar-fill" id="barLatNaive" style="background:var(--accent-a)"></div></div>
+            <span class="metric-val" id="valLatNaive">–</span>
+          </div>
+          <div class="metric-row">
+            <span style="color:var(--accent-b)">Laya-reranked</span>
+            <div class="bar-track"><div class="bar-fill" id="barLatLaya" style="background:var(--accent-b)"></div></div>
+            <span class="metric-val" id="valLatLaya">–</span>
+          </div>
+        </div>
+      </div>
+
+      <table class="per-q">
+        <thead>
+          <tr><th>Question</th><th>Naive: doc</th><th>Naive: fact</th><th>Laya: doc</th><th>Laya: fact</th></tr>
+        </thead>
+        <tbody id="evalTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CORPUS TAB -->
+  <section id="tab-corpus" class="tab-panel">
+    <p style="color:var(--muted); font-size:12.5px;">Sample documents indexed into the in-memory vector store at backend startup.</p>
+    <div class="corpus-list" id="corpusList"></div>
+  </section>
+</main>
+
+<footer>RAG POC — OpenAI generation on both paths · reranking is the only variable being compared.</footer>
+
+<script>
+const DEFAULT_BACKEND = "http://localhost:8090";
+const backendInput = document.getElementById("backendUrl");
+backendInput.value = localStorage.getItem("rag_poc_backend") || DEFAULT_BACKEND;
+backendInput.addEventListener("change", () => {
+  localStorage.setItem("rag_poc_backend", backendInput.value.trim());
+  checkHealth();
+});
+function backendUrl() { return backendInput.value.trim().replace(/\/$/, ""); }
+
+// ---- tabs ----
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "corpus") loadCorpus();
+  });
+});
+
+// ---- health check ----
+async function checkHealth() {
+  const dot = document.getElementById("statusDot");
+  const text = document.getElementById("statusText");
+  const chunkCount = document.getElementById("chunkCount");
+  try {
+    const res = await fetch(backendUrl() + "/api/health");
+    const data = await res.json();
+    dot.className = "dot ok";
+    text.textContent = `backend online · ${data.chat_model} · laya at ${data.laya_url}`;
+    chunkCount.textContent = `· ${data.chunks_indexed} chunks indexed`;
+  } catch (e) {
+    dot.className = "dot bad";
+    text.textContent = "backend unreachable — check the URL and that docker compose is running";
+    chunkCount.textContent = "";
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+// ---- sample questions ----
+const SAMPLES = [
+  "How many days of paid annual leave do employees get?",
+  "What is the daily meal per-diem for US travel?",
+  "How soon must I enable MFA after starting?",
+  "What is the RoboArm X1's max payload?",
+];
+const sampleWrap = document.getElementById("sampleQs");
+SAMPLES.forEach(q => {
+  const b = document.createElement("button");
+  b.textContent = q;
+  b.onclick = () => { document.getElementById("queryInput").value = q; runCompare(); };
+  sampleWrap.appendChild(b);
+});
+
+// ---- timing strip renderer ----
+const STAGE_COLORS = {
+  embed: "#4f9dff", retrieve: "#8a5cf7", rerank: "#ffb454", generate: "#37d399"
+};
+const STAGE_LABELS = { embed: "embed", retrieve: "retrieve", rerank: "rerank (Laya, parallel)", generate: "generate (OpenAI)" };
+
+function renderTiming(stripEl, legendEl, timing) {
+  stripEl.innerHTML = "";
+  legendEl.innerHTML = "";
+  const total = timing.total || Object.values(timing).filter(k => typeof k === "number").reduce((a,b)=>a+b,0);
+  Object.entries(timing).forEach(([k, v]) => {
+    if (k === "total" || typeof v !== "number") return;
+    const seg = document.createElement("div");
+    seg.className = "timing-seg";
+    seg.style.width = (total ? (v / total * 100) : 0) + "%";
+    seg.style.background = STAGE_COLORS[k] || "#555";
+    seg.title = `${k}: ${v} ms`;
+    stripEl.appendChild(seg);
+
+    const leg = document.createElement("span");
+    leg.innerHTML = `<span class="sw" style="background:${STAGE_COLORS[k]||'#555'}"></span>${STAGE_LABELS[k]||k}: ${v}ms`;
+    legendEl.appendChild(leg);
+  });
+}
+
+function renderChunks(container, chunks, scoreKey) {
+  container.innerHTML = "";
+  chunks.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "chunk-item";
+    const score = c[scoreKey] !== undefined ? c[scoreKey] : null;
+    div.innerHTML = `<div class="meta"><span>${c.doc_title || c.doc_id}</span>${score !== null ? `<span class="score">${score}</span>` : ""}</div><div>${c.text}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function renderAllScored(container, items) {
+  container.innerHTML = "";
+  items.forEach(it => {
+    const div = document.createElement("div");
+    div.className = "chunk-item" + (it.kept ? "" : " kept-no");
+    div.innerHTML = `<div class="meta"><span>${it.doc_id} ${it.kept ? "· kept" : "· filtered out"}</span><span class="score">${it.laya_relevance} <span style="color:var(--muted);font-weight:400;">(${it.call_ms}ms)</span></span></div><div>${it.text_preview}…</div>`;
+    container.appendChild(div);
+  });
+}
+
+// ---- compare ----
+async function runCompare() {
+  const q = document.getElementById("queryInput").value.trim();
+  if (!q) return;
+  const runBtn = document.getElementById("runBtn");
+  runBtn.disabled = true;
+  document.getElementById("compareLoading").style.display = "block";
+  document.getElementById("compareGrid").style.display = "none";
+  try {
+    const res = await fetch(backendUrl() + "/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+
+    document.getElementById("naiveAnswer").textContent = data.naive.answer;
+    document.getElementById("layaAnswer").textContent = data.laya_reranked.answer;
+
+    renderTiming(document.getElementById("naiveStrip"), document.getElementById("naiveLegend"), data.naive.timing_ms);
+    renderTiming(document.getElementById("layaStrip"), document.getElementById("layaLegend"), data.laya_reranked.timing_ms);
+
+    document.getElementById("naiveTotal").textContent = data.naive.timing_ms.total;
+    document.getElementById("layaTotal").textContent = data.laya_reranked.timing_ms.total;
+
+    renderChunks(document.getElementById("naiveChunks"), data.naive.context_used, "similarity");
+    renderChunks(document.getElementById("layaChunks"), data.laya_reranked.context_used, "laya_relevance");
+    renderAllScored(document.getElementById("layaAllScored"), data.laya_reranked.all_candidates_scored);
+
+    document.getElementById("compareGrid").style.display = "grid";
+  } catch (e) {
+    alert("Request failed: " + e.message);
+  } finally {
+    runBtn.disabled = false;
+    document.getElementById("compareLoading").style.display = "none";
+  }
+}
+document.getElementById("runBtn").addEventListener("click", runCompare);
+document.getElementById("queryInput").addEventListener("keydown", e => { if (e.key === "Enter") runCompare(); });
+
+// ---- eval ----
+async function runEval() {
+  const btn = document.getElementById("runEvalBtn");
+  btn.disabled = true;
+  document.getElementById("evalLoading").style.display = "block";
+  document.getElementById("evalResults").style.display = "none";
+  try {
+    const res = await fetch(backendUrl() + "/api/evaluate", { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    const s = data.summary;
+
+    setBar("barRetNaive", "valRetNaive", s.naive.retrieval_accuracy, "%");
+    setBar("barRetLaya", "valRetLaya", s.laya_reranked.retrieval_accuracy, "%");
+    setBar("barKwNaive", "valKwNaive", s.naive.answer_keyword_accuracy, "%");
+    setBar("barKwLaya", "valKwLaya", s.laya_reranked.answer_keyword_accuracy, "%");
+
+    const maxLat = Math.max(s.naive.avg_latency_ms, s.laya_reranked.avg_latency_ms) || 1;
+    document.getElementById("barLatNaive").style.width = (s.naive.avg_latency_ms / maxLat * 100) + "%";
+    document.getElementById("valLatNaive").textContent = s.naive.avg_latency_ms + "ms";
+    document.getElementById("barLatLaya").style.width = (s.laya_reranked.avg_latency_ms / maxLat * 100) + "%";
+    document.getElementById("valLatLaya").textContent = s.laya_reranked.avg_latency_ms + "ms";
+
+    const tbody = document.getElementById("evalTableBody");
+    tbody.innerHTML = "";
+    data.per_question.forEach(q => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${q.question}</td>
+        <td class="${q.naive.retrieval_hit ? 'hit' : 'miss'}">${q.naive.retrieval_hit ? '✓' : '✗'}</td>
+        <td class="${q.naive.keyword_hit ? 'hit' : 'miss'}">${q.naive.keyword_hit ? '✓' : '✗'}</td>
+        <td class="${q.laya_reranked.retrieval_hit ? 'hit' : 'miss'}">${q.laya_reranked.retrieval_hit ? '✓' : '✗'}</td>
+        <td class="${q.laya_reranked.keyword_hit ? 'hit' : 'miss'}">${q.laya_reranked.keyword_hit ? '✓' : '✗'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("evalResults").style.display = "block";
+  } catch (e) {
+    alert("Eval failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById("evalLoading").style.display = "none";
+  }
+}
+function setBar(barId, valId, frac, suffix) {
+  document.getElementById(barId).style.width = (frac * 100) + "%";
+  document.getElementById(valId).textContent = Math.round(frac * 100) + suffix;
+}
+document.getElementById("runEvalBtn").addEventListener("click", runEval);
+
+// ---- corpus ----
+async function loadCorpus() {
+  const list = document.getElementById("corpusList");
+  list.innerHTML = "loading…";
+  try {
+    const res = await fetch(backendUrl() + "/api/corpus");
+    const data = await res.json();
+    list.innerHTML = "";
+    data.documents.forEach(d => {
+      const div = document.createElement("div");
+      div.className = "corpus-card";
+      div.innerHTML = `<h4>${d.title}</h4><span>${d.chunks} chunks · ${d.doc_id}</span>`;
+      list.appendChild(div);
+    });
+  } catch (e) {
+    list.innerHTML = "Could not load corpus — check backend connection.";
+  }
+}
+</script>
+</body>
+</html>
