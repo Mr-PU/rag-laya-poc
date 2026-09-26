@@ -2,7 +2,7 @@
 
 A small proof-of-concept comparing two RAG pipelines over the same sample corpus and the same
 OpenAI generation step, isolating **one variable**: whether retrieved chunks are reranked by
-[Laya](https://github.com/NandhaKishorM/laya) — a fast, local, non-autoregressive decision model
+[Laya](https://github.com/NandhaKishorM/laya) a fast, local, non-autoregressive decision model
 before being sent to the LLM.
 
 Laya doesn't generate text answers; it makes fast typed yes/no ("noul") decisions with calibrated
@@ -112,7 +112,7 @@ for the eval tab to stay meaningful.
   which is part of the point, see the "rerank" segment of the timing breakdown.
 
 ## Understanding the Results
-
+![RAG Comparison Results](./docs/comparison-results.png)
 Both pipelines gave the same correct answer here, and that's actually a meaningful (if slightly boring) result, let me walk through why.
 
 **Why embed/retrieve are identical on both cards:** by design, the backend computes the query embedding and does vector search once and shares those candidate chunks with both paths (see pipeline.py's `_retrieve_candidates`). That isolates the one variable being tested, reranking, so 1244.7ms / 0.41ms aren't two separate calls, they're the same numbers displayed twice.
